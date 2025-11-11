@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Poytube</title>
+<style>
+  body { margin:0; font-family: Arial, sans-serif; background:#f9f9f9; }
+  header { background:#ff0000; color:white; display:flex; align-items:center; padding:10px 20px; }
+  header h1 { margin:0; font-size:24px; cursor:pointer; }
+  .search-bar { margin-left:20px; flex:1; display:flex; }
+  .search-bar input { flex:1; padding:5px 10px; font-size:16px; }
+  .search-bar button { background:#fff; color:#ff0000; border:none; padding:5px 15px; cursor:pointer; font-weight:bold; }
+  main { padding:20px; display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:15px; }
+  .video-card { background:white; border-radius:5px; overflow:hidden; box-shadow:0 2px 5px rgba(0,0,0,0.1); cursor:pointer; padding-bottom:10px; }
+  .video-card img { width:100%; height:auto; display:block; }
+  .video-info { padding:10px; display:flex; gap:10px; align-items:center; }
+  .video-info img { width:36px; height:36px; border-radius:50%; }
+  .video-info div { display:flex; flex-direction:column; }
+  .video-info h3 { margin:0 0 5px 0; font-size:16px; }
+  .video-info p { margin:0; font-size:14px; color:#555; }
+  #playerModal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); justify-content:center; align-items:center; }
+  #playerModal iframe { width:80%; height:80%; border:none; border-radius:5px; }
+  #playerModal .close { position:absolute; top:20px; right:30px; font-size:30px; color:white; cursor:pointer; }
+  .shorts-section { padding:20px; display:flex; overflow-x:auto; gap:15px; }
+  .short-card { min-width:150px; height:300px; background:white; border-radius:5px; overflow:hidden; cursor:pointer; flex-shrink:0; box-shadow:0 2px 5px rgba(0,0,0,0.1); }
+  .short-card img { width:100%; height:70%; object-fit:cover; }
+  .short-card h4 { margin:5px; font-size:14px; }
+  .short-card p { margin:0 5px; font-size:12px; color:#555; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Poytube</h1>
+  <div class="search-bar">
+    <input type="text" id="searchInput" placeholder="Ara: müzik, oyun, komedi veya kanal...">
+    <button onclick="searchVideos()">Ara</button>
+  </div>
+</header>
+
+<main id="videoGrid"></main>
+
+<h2 style="padding:0 20px;">Shorts</h2>
+<div class="shorts-section" id="shortsGrid"></div>
+
+<div id="playerModal">
+  <div class="close" onclick="closePlayer()">&times;</div>
+  <iframe id="playerIframe" src="" allowfullscreen></iframe>
+</div>
+
+<script>
+const API_KEY = 'AIzaSyAE6WiWT_ggGx8EQnQqa32gFtkG1inxKXM';
+const videoGrid = document.getElementById('videoGrid');
+const shortsGrid = document.getElementById('shortsGrid');
+const playerModal = document.getElementById('playerModal');
+const playerIframe = document.getElementById('playerIframe');
+
+async function searchVideos() {
+  const query = document.getElementById('searchInput').value.trim() || 'trending';
+  try {
+    // Kanal arama
+    let channelRes = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&maxResults=1&q=${encodeURIComponent(query)}&key=${API_KEY}`);
+    let channelData = await channelRes.json();
+    let channelId = null;
+    if(channelData.items && channelData.items.length > 0){
+      channelId = channelData.items[0].id.channelId;
+    }
+
+    // Videolar
+    let videoUrl = channelId
+      ? `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=12&channelId=${channelId}&key=${API_KEY}`
+      : `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=12&q=${encodeURIComponent(query)}&key=${API_KEY}`;
+    const videosRes = await fetch(videoUrl);
+    const videosData = await videosRes.json();
+    displayVideos(videosData.items);
+    displayShorts(videosData.items.slice(0,6));
+  } catch(e) {
+    console.error(e);
+    videoGrid.innerHTML = '<p>Videolar yüklenemedi.</p>';
+    shortsGrid.innerHTML = '';
+  }
+}
+
+async function displayVideos(videos) {
+  videoGrid.innerHTML = '';
+  for(const v of videos){
+    const id = v.id.videoId;
+    if(!id) continue;
+    const title = v.snippet.title;
+    const channel = v.snippet.channelTitle;
+    const thumbnail = v.snippet.thumbnails.medium.url;
+
+    const card = document.createElement('div');
+    card.className = 'video-card';
+    card.innerHTML = `
+      <img src="${thumbnail}" alt="${title}">
+      <div class="video-info">
+        <div>
+          <h3>${title}</h3>
+          <p>${channel}</p>
+        </div>
+      </div>
+      <button onclick="openPlayer('${id}')"
+        style="margin:5px;padding:5px 10px;background:#ff0000;color:white;border:none;border-radius:4px;cursor:pointer;">İzle</button>
+      <a href="https://www.youtube.com/watch?v=${id}" target="_blank"
+        style="margin:5px;padding:5px 10px;background:#555;color:white;border:none;border-radius:4px;text-decoration:none;">YouTube'da Aç</a>
+    `;
+    videoGrid.appendChild(card);
+  }
+}
+
+async function displayShorts(videos) {
+  shortsGrid.innerHTML = '';
+  for(const v of videos){
+    const id = v.id.videoId;
+    if(!id) continue;
+    const title = v.snippet.title;
+    const channel = v.snippet.channelTitle;
+    const thumbnail = v.snippet.thumbnails.medium.url;
+
+    const card = document.createElement('div');
+    card.className = 'short-card';
+    card.innerHTML = `
+      <img src="${thumbnail}" alt="${title}">
+      <h4>${title}</h4>
+      <p>${channel}</p>
+      <button onclick="openPlayer('${id}')"
+        style="margin:3px 5px;padding:3px 5px;background:#ff0000;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px;">İzle</button>
+      <a href="https://www.youtube.com/watch?v=${id}" target="_blank"
+        style="margin:3px 5px;padding:3px 5px;background:#555;color:white;border:none;border-radius:4px;text-decoration:none;font-size:12px;">YouTube'da Aç</a>
+    `;
+    shortsGrid.appendChild(card);
+  }
+}
+
+function openPlayer(videoId) {
+  playerIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+  playerModal.style.display = 'flex';
+}
+
+function closePlayer() {
+  playerModal.style.display = 'none';
+  playerIframe.src = '';
+}
+
+document.getElementById('searchInput').addEventListener('keypress', e => {
+  if(e.key==='Enter') searchVideos();
+});
+
+// Sayfa yüklendiğinde trending videolar
+searchVideos();
+</script>
+
+</body>
+</html>
